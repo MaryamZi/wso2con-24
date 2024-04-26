@@ -2,7 +2,10 @@ import ballerina/graphql;
 import ballerina/http;
 import ballerina/test;
 
-final graphql:Client cl = check new ("http://localhost:9000/reviewed");
+final graphql:Client cl = check new ("https://localhost:9000/reviewed",
+                                    secureSocket = {
+                                        cert: "../resources/certs/public.crt"
+                                    });
 
 @test:Mock {
     functionName: "getGeoClient"
@@ -22,9 +25,8 @@ function testRetrievingPlaceIdsAndNames() returns error? {
     test:assertEquals(payload, {
         "data": {
             "places": [
-                {"id": 8000, "name": "Tower Vista", "city": "Colombo", "country": "Sri Lanka"},
                 {"id": 8001, "name": "TechTrail", "city": "Miami", "country": "United States"},
-                {"id": 8002, "name": "TechTrail", "city": "Miami", "country": "US"}
+                {"id": 8000, "name": "Tower Vista", "city": "Colombo", "country": "Sri Lanka"}
             ]
         }
     });
@@ -51,6 +53,7 @@ function testRetrievingTimeZone() returns error? {
             name
             city
             country
+            population
             timezone
         }
     }`, {"placeId": 8001});
@@ -61,6 +64,7 @@ function testRetrievingTimeZone() returns error? {
                 "name": "TechTrail",
                 "city": "Miami",
                 "country": "United States",
+                "population": 450000,
                 "timezone": "America/New_York"
             }
         }

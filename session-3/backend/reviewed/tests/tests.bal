@@ -3,9 +3,10 @@ import ballerina/http;
 import ballerina/test;
 
 final graphql:Client cl = check new ("https://localhost:9000/reviewed",
-                                    secureSocket = {
-                                        cert: "../resources/certs/public.crt"
-                                    });
+    secureSocket = {
+        cert: "../resources/certs/public.crt"
+    }
+);
 
 @test:Mock {
     functionName: "getGeoClient"
@@ -13,8 +14,8 @@ final graphql:Client cl = check new ("https://localhost:9000/reviewed",
 function getMockClient() returns http:Client => test:mock(http:Client);
 
 @test:Config
-function testRetrievingPlaceIdsAndNames() returns error? {
-    json payload = check cl->execute(string `{
+function testRetrievingBasicPlaceData() returns error? {
+    json actual = check cl->execute(string `{
         places {
             id
             name
@@ -22,24 +23,39 @@ function testRetrievingPlaceIdsAndNames() returns error? {
             country
         }
     }`);
-    test:assertEquals(payload, {
-        "data": {
-            "places": [
-                {"id": 8001, "name": "TechTrail", "city": "Miami", "country": "United States"},
-                {"id": 8000, "name": "Tower Vista", "city": "Colombo", "country": "Sri Lanka"}
-            ]
-        }
-    });
+
+    BasicPlaceData[] expected = check from BasicPlaceData cityData in db->/places(BasicPlaceData)
+                                    order by cityData.name
+                                    select cityData;
+    test:assertEquals(actual, {"data": {"places": expected}});
 }
 
-@test:Config 
-function testRetrievingTimeZone() returns error? {
+type BasicPlaceData record {|
+    int id;
+    string name;
+    string city;
+    string country;
+|};
+
+type CityDataWithPopulationAndTimeZone record {|
+    int id;
+    string name;
+    string city;
+    string country;
+    int population;
+    string timezone;
+|};
+
+@test:Config
+function testRetrievingPlaceDataWithCityData() returns error? {
     CityData cityData = {
         total_count: 1,
-        results: [{
-            population: 450000,
-            timezone: "America/New_York"
-        }]
+        results: [
+            {
+                population: 450000,
+                timezone: "America/New_York"
+            }
+        ]
     };
 
     test:prepare(geoClient)
@@ -57,16 +73,16 @@ function testRetrievingTimeZone() returns error? {
             timezone
         }
     }`, {"placeId": 8001});
+
+    BasicPlaceData placeData = check db->/places/[8001]();
+
     test:assertEquals(payload, {
-        "data": {
-            "place": {
-                "id": 8001,
-                "name": "TechTrail",
-                "city": "Miami",
-                "country": "United States",
-                "population": 450000,
-                "timezone": "America/New_York"
-            }
-        }
-    });
+                                   "data": {
+                                       "place": {
+                                           ...placeData,
+                                           "population": 450000,
+                                           "timezone": "America/New_York"
+                                       }
+                                   }
+                               });
 }
